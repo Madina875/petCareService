@@ -1,0 +1,14 @@
+const Joi = require("joi");
+
+exports.serviceCategoryValidation = (body) => {
+  const schema = Joi.object({
+    name: Joi.string().max(50).required().messages({
+      "string.empty": "Category name cannot be empty",
+      "string.max": "Category name cannot exceed 50 characters",
+      "any.required": "Category name is required",
+    }),
+    description: Joi.string().max(200).required(),
+  });
+
+  return schema.validate(body, { abortEarly: false });
+};
