@@ -1,4 +1,10 @@
-const { sendErrorResponse } = require("../helpers/send_error_response");
+const {
+  handleError,
+  ValidationError,
+  AuthenticationError,
+  NotFoundError,
+  ConflictError,
+} = require("../helpers/error_handler");
 const Employee = require("../models/employee.model");
 const { employeeValidation } = require("../validations/employee.validation");
 const config = require("config");
@@ -14,13 +20,14 @@ const add = async (req, res) => {
   try {
     const { error, value } = employeeValidation(req.body);
     if (error) {
-      return sendErrorResponse(error, res, 400);
+      throw new ValidationError(error.details[0].message);
     }
+
     const existingEmployee = await Employee.findOne({
       where: { email: value.email },
     });
     if (existingEmployee) {
-      return res.status(400).json({ message: "Email already registered" });
+      throw new ConflictError("Email already registered");
     }
 
     const hashedPassword = await bcrypt.hash(value.password, 10);
@@ -33,12 +40,13 @@ const add = async (req, res) => {
 
     const { password, ...employeeData } = newEmployee.toJSON();
 
-    res.status(201).send({
+    res.status(201).json({
+      success: true,
       message: "New employee created successfully!",
-      employee: employeeData,
+      data: employeeData,
     });
   } catch (error) {
-    sendErrorResponse(error, res, 400);
+    handleError(error, res);
   }
 };
 
@@ -68,78 +76,152 @@ const getAll = async (req, res) => {
       attributes: ["id", "first_name", "email", "phone_number"],
     });
 
-    res.status(200).send(employees);
+    res.status(200).json({
+      success: true,
+      data: employees,
+    });
   } catch (error) {
-    sendErrorResponse(error, res, 400);
+    handleError(error, res);
   }
 };
 
 const getById = async (req, res) => {
   try {
-    let { id } = req.params;
+    const { id } = req.params;
     if (!id) {
-      return res.status(404).send({ message: "id not found" });
+      throw new ValidationError("ID is required");
     }
-    const employees = await Employee.findByPk(id);
-    res.status(200).send(employees);
+
+    const employee = await Employee.findByPk(id, {
+      include: [
+        {
+          model: Service,
+          through: {
+            model: Serviceemployee,
+            attributes: [],
+          },
+          attributes: ["id", "price", "description"],
+        },
+        {
+          model: Appointment,
+          attributes: [
+            "id",
+            "status",
+            "start_date",
+            "end_date",
+            "overall_amount",
+          ],
+        },
+      ],
+      attributes: ["id", "first_name", "email", "phone_number", "is_active"],
+    });
+
+    if (!employee) {
+      throw new NotFoundError("Employee not found");
+    }
+
+    res.status(200).json({
+      success: true,
+      data: employee,
+    });
   } catch (error) {
-    sendErrorResponse(error, res, 400);
+    handleError(error, res);
   }
 };
 
 const remove = async (req, res) => {
   try {
-    let { id } = req.params;
+    const { id } = req.params;
     if (!id) {
-      return res.status(404).send({ message: "id not found" });
+      throw new ValidationError("ID is required");
     }
-    const employee = await Employee.destroy({ where: { id } });
-    res.status(200).send(employee);
+
+    const employee = await Employee.findByPk(id);
+    if (!employee) {
+      throw new NotFoundError("Employee not found");
+    }
+
+    await Employee.destroy({ where: { id } });
+
+    res.status(200).json({
+      success: true,
+      message: "Employee deleted successfully",
+    });
   } catch (error) {
-    sendErrorResponse(error, res, 400);
+    handleError(error, res);
   }
 };
 
 const update = async (req, res) => {
   try {
-    const employee = await Employee.update(
-      { ...req.body },
-      {
-        where: { id: req.params.id },
-        returning: true,
-      }
-    );
-    res.status(200).send(employee);
+    const { id } = req.params;
+    if (!id) {
+      throw new ValidationError("ID is required");
+    }
+
+    const employee = await Employee.findByPk(id);
+    if (!employee) {
+      throw new NotFoundError("Employee not found");
+    }
+
+    // If password is being updated, hash it
+    if (req.body.password) {
+      req.body.password = await bcrypt.hash(req.body.password, 10);
+    }
+
+    const [updated] = await Employee.update(req.body, {
+      where: { id },
+      returning: true,
+    });
+
+    if (!updated) {
+      throw new Error("Failed to update employee");
+    }
+
+    const updatedEmployee = await Employee.findByPk(id, {
+      attributes: { exclude: ["password", "refresh_token"] },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Employee updated successfully",
+      data: updatedEmployee,
+    });
   } catch (error) {
-    sendErrorResponse(error, res, 400);
+    handleError(error, res);
   }
 };
 
 const loginEmployee = async (req, res) => {
   try {
     const { email, password } = req.body;
-    //ident
+
+    if (!email || !password) {
+      throw new ValidationError("Email and password are required");
+    }
+
     const employee = await Employee.findOne({ where: { email } });
     if (!employee) {
-      return res
-        .status(401)
-        .send({ message: "email or password is incorrect" });
+      throw new AuthenticationError("Invalid credentials");
     }
 
-    //auth
-    const validPassword = bcrypt.compareSync(password, employee.password);
+    const validPassword = await bcrypt.compare(password, employee.password);
     if (!validPassword) {
-      return res
-        .status(401)
-        .send({ message: "email or password is incorrect" });
+      throw new AuthenticationError("Invalid credentials");
     }
 
-    //token kalit berib yuborish :
+    if (!employee.is_active) {
+      throw new AuthenticationError(
+        "Account is not activated. Please check your email for activation link."
+      );
+    }
+
     const payload = {
       id: employee.id,
       is_active: employee.is_active,
       email: employee.email,
     };
+
     const tokens = EmployeeJwtService.generateTokens(payload);
     employee.refresh_token = tokens.refreshToken;
     await employee.save();
@@ -149,13 +231,16 @@ const loginEmployee = async (req, res) => {
       maxAge: config.get("cookie_refresh_time_employee"),
     });
 
-    res.status(201).send({
-      message: "welcome",
-      id: employee.id,
-      accessToken: tokens.accessToken,
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      data: {
+        id: employee.id,
+        accessToken: tokens.accessToken,
+      },
     });
   } catch (error) {
-    sendErrorResponse(error, res);
+    handleError(error, res);
   }
 };
 
@@ -164,23 +249,27 @@ const logoutEmployee = async (req, res) => {
     const { refreshToken } = req.cookies;
 
     if (!refreshToken) {
-      return res
-        .status(400)
-        .send({ message: "cookieda refresh token topilmadi" });
+      throw new ValidationError("Refresh token is required");
     }
+
     const employee = await Employee.findOne({
       where: { refresh_token: refreshToken },
     });
+
     if (!employee) {
-      return res.status(400).send({ message: "Token notogri" });
+      throw new AuthenticationError("Invalid token");
     }
-    employee.refresh_token = "";
+
+    employee.refresh_token = null;
     await employee.save();
 
     res.clearCookie("refreshToken");
-    res.send({ employee });
+    res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
+    });
   } catch (error) {
-    sendErrorResponse(error, res);
+    handleError(error, res);
   }
 };
 
@@ -188,27 +277,25 @@ const refreshEmployeeToken = async (req, res) => {
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      return res
-        .status(400)
-        .send({ message: "cookieda refresh token topilmadi" });
+      throw new ValidationError("Refresh token is required");
     }
 
-    //verify
     await EmployeeJwtService.verifyRefreshToken(refreshToken);
 
     const employee = await Employee.findOne({
       where: { refresh_token: refreshToken },
     });
+
     if (!employee) {
-      return res
-        .status(401)
-        .send({ message: "bazada refresh token topilmadi" });
+      throw new AuthenticationError("Invalid refresh token");
     }
+
     const payload = {
       id: employee.id,
       is_active: employee.is_active,
       email: employee.email,
     };
+
     const tokens = EmployeeJwtService.generateTokens(payload);
     employee.refresh_token = tokens.refreshToken;
     await employee.save();
@@ -218,21 +305,34 @@ const refreshEmployeeToken = async (req, res) => {
       maxAge: config.get("cookie_refresh_time_employee"),
     });
 
-    res.status(201).send({
-      message: "tokenlar yangilandi",
-      id: employee.id,
-      accessToken: tokens.accessToken,
+    res.status(200).json({
+      success: true,
+      message: "Tokens refreshed successfully",
+      data: {
+        id: employee.id,
+        accessToken: tokens.accessToken,
+      },
     });
   } catch (error) {
-    sendErrorResponse(error, res);
+    handleError(error, res);
   }
 };
 
 const registerEmployee = async (req, res) => {
   try {
-    const { email, password, ...rest } = req.body;
+    const { error, value } = employeeValidation(req.body);
+    if (error) {
+      throw new ValidationError(error.details[0].message);
+    }
 
-    const hashedPassword = bcrypt.hashSync(password, 7);
+    const { email, password, ...rest } = value;
+
+    const existingEmployee = await Employee.findOne({ where: { email } });
+    if (existingEmployee) {
+      throw new ConflictError("Email already registered");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     const activation_link = uuid.v4();
 
     const newEmployee = await Employee.create({
@@ -245,47 +345,56 @@ const registerEmployee = async (req, res) => {
     const link = `${config.get(
       "api_url"
     )}/api/employee/activate/${activation_link}`;
-
     await mailService.sendMail(email, link);
 
+    const {
+      password: _,
+      refresh_token: __,
+      ...employeeData
+    } = newEmployee.toJSON();
+
     res.status(201).json({
-      message: "Registration confirmed ✅",
-      employee: {
-        id: newEmployee.id,
-        first_name: newEmployee.first_name,
-        last_name: newEmployee.last_name,
-        email: newEmployee.email,
-        phone_number: newEmployee.phone_number,
-        activation_link: activation_link,
-      },
+      success: true,
+      message:
+        "Registration successful. Please check your email for activation.",
+      data: employeeData,
     });
   } catch (error) {
-    sendErrorResponse(error, res, 400);
+    handleError(error, res);
   }
 };
 
 const activateEmployee = async (req, res) => {
   try {
     const { link } = req.params;
+
+    if (!link) {
+      throw new ValidationError("Activation link is required");
+    }
+
     const employee = await Employee.findOne({
       where: { activation_link: link },
     });
     if (!employee) {
-      return res.status(400).send({ message: "employee link noto'g'ri" });
+      throw new NotFoundError("Invalid activation link");
     }
+
     if (employee.is_active) {
-      return res
-        .status(400)
-        .send({ message: "employee avval faollashtirilgan" });
+      throw new ConflictError("Employee account is already activated");
     }
+
     employee.is_active = true;
     await employee.save();
-    res.send({
-      message: "employee faollashtirildi",
-      isActive: employee.is_active,
+
+    res.status(200).json({
+      success: true,
+      message: "Employee account activated successfully",
+      data: {
+        isActive: employee.is_active,
+      },
     });
   } catch (error) {
-    sendErrorResponse(error, res, 400);
+    handleError(error, res);
   }
 };
 

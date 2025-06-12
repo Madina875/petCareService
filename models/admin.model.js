@@ -1,5 +1,5 @@
 const sequelize = require("../config/db");
-const { DataTypes } = require("sequelize");
+const { DataTypes, DATE } = require("sequelize");
 
 const Admin = sequelize.define(
   "admin",
@@ -22,7 +22,7 @@ const Admin = sequelize.define(
       type: DataTypes.STRING(250),
     },
     role: {
-      type: DataTypes.ENUM("superAdmin", "admin"),
+      type: DataTypes.ENUM("superadmin", "admin", "medical"),
       defaultValue: "admin",
     },
     is_creator: {
@@ -35,6 +35,14 @@ const Admin = sequelize.define(
     },
     activation_link: {
       type: DataTypes.STRING(100),
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      defaultValue: new DATE(),
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      defaultValue: new DATE(),
     },
   },
   {

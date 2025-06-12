@@ -10,7 +10,7 @@ const Appointment = require("../models/appointments.model");
 const Pet = require("../models/pet.model");
 const Client = require("../models/client.model");
 const Reviews = require("../models/reviews.model");
-const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 
 const add = async (req, res) => {
   try {
@@ -142,14 +142,52 @@ const remove = async (req, res) => {
 
 const update = async (req, res) => {
   try {
-    const appointment = await Appointment.update(
-      { ...req.body },
-      {
-        where: { id: req.params.id },
-        returning: true,
-      }
-    );
-    res.status(200).send(appointment);
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).send({ message: "Appointment ID is required" });
+    }
+
+    // Find the appointment first
+    const existingAppointment = await Appointment.findByPk(id);
+    if (!existingAppointment) {
+      return res.status(404).send({ message: "Appointment not found" });
+    }
+
+    // Validate the update data
+    const { error, value } = appointmentValidation(req.body);
+    if (error) {
+      return sendErrorResponse(error, res, 400);
+    }
+
+    // Update the appointment
+    const [updated] = await Appointment.update(value, {
+      where: { id },
+      returning: true,
+    });
+
+    if (!updated) {
+      return res.status(400).send({ message: "Failed to update appointment" });
+    }
+
+    // Get the updated appointment
+    const updatedAppointment = await Appointment.findByPk(id, {
+      include: [
+        {
+          model: Service,
+          attributes: ["id", "price", "description"],
+        },
+        {
+          model: Employee,
+          attributes: ["id", "first_name", "email", "phone_number"],
+        },
+      ],
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Appointment updated successfully",
+      data: updatedAppointment,
+    });
   } catch (error) {
     sendErrorResponse(error, res, 400);
   }
@@ -174,6 +212,10 @@ const getWhichHaveBookingWithService = async (req, res) => {
         {
           model: Service,
           attributes: ["id", "is_active", "description"],
+        },
+        {
+          model: Pet,
+          attributes: ["id", "name", "age"],
         },
       ],
       where: {
@@ -236,7 +278,6 @@ const getClientsWhichHaveBookingWithService = async (req, res) => {
 const getClientsRejected = async (req, res) => {
   try {
     const { start_time, end_time } = req.body;
-
     const start = new Date(start_time);
     const end = new Date(end_time);
     end.setHours(23, 59, 59, 999); //start_date >= 2025-01-07 00:00:00 | end_date <= 2025-08-07 23:59:59.999
@@ -259,9 +300,8 @@ const getClientsRejected = async (req, res) => {
         end_date: { [Op.lte]: end }, // dan oldin dan keyin
         status: "cancelled",
       },
-      attributes: ["id"],
+      attributes: ["id", "status"],
     });
-
     if (bookings.length === 0) {
       return res
         .status(404)
@@ -276,7 +316,6 @@ const getClientsRejected = async (req, res) => {
 const getPaymentsByClientFirstName = async (req, res) => {
   try {
     const { first_name } = req.body;
-
     if (!first_name) {
       return res
         .status(400)
@@ -323,6 +362,67 @@ const getPaymentsByClientFirstName = async (req, res) => {
   }
 };
 
+const getTopEmployeesByService = async (req, res) => {
+  try {
+    const { service_name } = req.query;
+
+    if (!service_name) {
+      return res.status(400).json({
+        success: false,
+        message: "Service name is required",
+      });
+    }
+
+    const topEmployees = await Employee.findAll({
+      attributes: [
+        "id",
+        "first_name",
+        "email",
+        "phone_number",
+        [
+          Sequelize.fn("COUNT", Sequelize.col("appointment.id")),
+          "appointment_count",
+        ],
+      ],
+      include: [
+        {
+          model: Appointment,
+          attributes: [],
+          required: true,
+          include: [
+            {
+              model: Service,
+              attributes: [],
+              required: true,
+              where: {
+                nam,
+              },
+            },
+          ],
+        },
+      ],
+      group: ["employee.id"],
+      having: Sequelize.literal("COUNT(appointment.id) > 0"),
+      order: [[Sequelize.literal("appointment_count"), "DESC"]],
+    });
+
+    if (!topEmployees.length) {
+      return res.status(404).json({
+        success: false,
+        message: `No employees found for service: ${service_name}`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Top employees for service: ${service_name}`,
+      data: topEmployees,
+    });
+  } catch (error) {
+    sendErrorResponse(error, res, 400);
+  }
+};
+
 module.exports = {
   add,
   getAll,
@@ -333,4 +433,5 @@ module.exports = {
   getClientsWhichHaveBookingWithService,
   getClientsRejected,
   getPaymentsByClientFirstName,
+  getTopEmployeesByService,
 };

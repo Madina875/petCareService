@@ -67,7 +67,7 @@ const getAll = async (req, res) => {
           attributes: ["id", "views_count", "average_rating"],
         },
       ],
-      attributes: ["id", "is_active", "description", "price"],
+      attributes: ["id", "name", "is_active", "description", "price"],
     });
     res.status(200).send(services);
   } catch (error) {

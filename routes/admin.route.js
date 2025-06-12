@@ -10,7 +10,7 @@ const {
   registerAdmin,
   activateAdmin,
 } = require("../controllers/admin.controller");
-const adminCreatorGuard = require("../guards/admin.creator.guard");
+const adminRoleGuard = require("../guards/admin.role.guard");
 const adminJwtGuard = require("../guards/admin.jwt.guard");
 const adminSelfGuard = require("../guards/admin.self.guard");
 
@@ -22,10 +22,34 @@ router.post("/logout", logoutAdmin);
 router.get("/refresh", refreshAdminToken);
 router.get("/activate/:link", activateAdmin);
 
-router.post("/", add);
-router.get("/", getAll);
-router.get("/:id", adminJwtGuard, adminSelfGuard, adminCreatorGuard, getById);
-router.delete("/:id", remove);
+router.post(
+  "/",
+  adminJwtGuard,
+  adminSelfGuard,
+  adminRoleGuard("superadmin"),
+  add
+);
+
+router.post(
+  "/",
+  adminJwtGuard,
+  adminSelfGuard,
+  adminRoleGuard("superadmin"),
+);
+
+router.get("/", adminJwtGuard, adminRoleGuard("superadmin"), getAll);
+// router.get("/", adminJwtGuard, getAll);
+
+router.get(
+  "/:id",
+  adminJwtGuard,
+  adminSelfGuard,
+  adminRoleGuard("superadmin", "admin"),
+  getById
+);
+// router.delete("/:id", remove);
+router.delete("/", adminJwtGuard, adminRoleGuard("superadmin"), remove);
+
 router.post("/:id", update);
 
 module.exports = router;

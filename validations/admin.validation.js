@@ -18,10 +18,12 @@ exports.adminValidation = (body) => {
       "any.required": "Password is required",
     }),
     refresh_token: Joi.string().max(250),
-    role: Joi.string().valid("superAdmin", "admin").default("admin"),
+    role: Joi.string().valid("superadmin", "admin", "medical").default("admin"),
     is_creator: Joi.boolean().default(true),
     is_active: Joi.boolean().default(false),
     activation_link: Joi.string().max(100),
+    created_at: Joi.date(),
+    updated_at: Joi.date(),
   });
 
   return schema.validate(body, { abortEarly: false });
