@@ -16,38 +16,38 @@ const mailService = require("../service/mail.service");
 const Appointment = require("../models/appointments.model");
 const Pet = require("../models/pet.model");
 
-const add = async (req, res) => {
-  try {
-    const { error, value } = clientValidation(req.body);
-    if (error) {
-      throw new ValidationError(error.details[0].message);
-    }
+// const add = async (req, res) => {
+//   try {
+//     const { error, value } = clientValidation(req.body);
+//     if (error) {
+//       throw new ValidationError(error.details[0].message);
+//     }
 
-    const existingClient = await Client.findOne({
-      where: { email: value.email },
-    });
+//     const existingClient = await Client.findOne({
+//       where: { email: value.email },
+//     });
 
-    if (existingClient) {
-      throw new ConflictError("Email already registered");
-    }
+//     if (existingClient) {
+//       throw new ConflictError("Email already registered");
+//     }
 
-    const hashedPassword = await bcrypt.hash(value.password, 10);
-    const newClient = await Client.create({
-      ...value,
-      password: hashedPassword,
-    });
+//     const hashedPassword = await bcrypt.hash(value.password, 10);
+//     const newClient = await Client.create({
+//       ...value,
+//       password: hashedPassword,
+//     });
 
-    const { password, ...clientData } = newClient.toJSON();
+//     const { password, ...clientData } = newClient.toJSON();
 
-    res.status(201).json({
-      success: true,
-      message: "New client created successfully!",
-      data: clientData,
-    });
-  } catch (error) {
-    handleError(error, res);
-  }
-};
+//     res.status(201).json({
+//       success: true,
+//       message: "New client created successfully!",
+//       data: clientData,
+//     });
+//   } catch (error) {
+//     handleError(error, res);
+//   }
+// };
 
 const getAll = async (req, res) => {
   try {
@@ -401,7 +401,7 @@ const activateClient = async (req, res) => {
 };
 
 module.exports = {
-  add,
+  // add,
   getAll,
   getById,
   remove,

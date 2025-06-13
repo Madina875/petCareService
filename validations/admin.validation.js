@@ -17,7 +17,7 @@ exports.adminValidation = (body) => {
       "string.max": "Password cannot exceed 250 characters",
       "any.required": "Password is required",
     }),
-    refresh_token: Joi.string().max(250),
+    refresh_token: Joi.string().max(500),
     role: Joi.string().valid("superadmin", "admin", "medical").default("admin"),
     is_creator: Joi.boolean().default(true),
     is_active: Joi.boolean().default(false),

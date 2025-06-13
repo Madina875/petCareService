@@ -16,39 +16,39 @@ const Service = require("../models/service.model");
 const Appointment = require("../models/appointments.model");
 const Serviceemployee = require("../models/service_employee.model");
 
-const add = async (req, res) => {
-  try {
-    const { error, value } = employeeValidation(req.body);
-    if (error) {
-      throw new ValidationError(error.details[0].message);
-    }
+// const add = async (req, res) => {
+//   try {
+//     const { error, value } = employeeValidation(req.body);
+//     if (error) {
+//       throw new ValidationError(error.details[0].message);
+//     }
 
-    const existingEmployee = await Employee.findOne({
-      where: { email: value.email },
-    });
-    if (existingEmployee) {
-      throw new ConflictError("Email already registered");
-    }
+//     const existingEmployee = await Employee.findOne({
+//       where: { email: value.email },
+//     });
+//     if (existingEmployee) {
+//       throw new ConflictError("Email already registered");
+//     }
 
-    const hashedPassword = await bcrypt.hash(value.password, 10);
+//     const hashedPassword = await bcrypt.hash(value.password, 10);
 
-    const newEmployee = await Employee.create({
-      ...value,
-      password: hashedPassword,
-      activation_link: uuid.v4(),
-    });
+//     const newEmployee = await Employee.create({
+//       ...value,
+//       password: hashedPassword,
+//       activation_link: uuid.v4(),
+//     });
 
-    const { password, ...employeeData } = newEmployee.toJSON();
+//     const { password, ...employeeData } = newEmployee.toJSON();
 
-    res.status(201).json({
-      success: true,
-      message: "New employee created successfully!",
-      data: employeeData,
-    });
-  } catch (error) {
-    handleError(error, res);
-  }
-};
+//     res.status(201).json({
+//       success: true,
+//       message: "New employee created successfully!",
+//       data: employeeData,
+//     });
+//   } catch (error) {
+//     handleError(error, res);
+//   }
+// };
 
 const getAll = async (req, res) => {
   try {
@@ -399,7 +399,7 @@ const activateEmployee = async (req, res) => {
 };
 
 module.exports = {
-  add,
+  // add,
   getAll,
   getById,
   remove,

@@ -16,18 +16,40 @@ const adminSelfGuard = require("../guards/admin.self.guard");
 
 const router = require("express").Router();
 
-router.post("/login", loginAdmin);
-router.post("/register", registerAdmin);
-router.post("/logout", logoutAdmin);
-router.get("/refresh", refreshAdminToken);
-router.get("/activate/:link", activateAdmin);
-
 router.post(
-  "/",
+  "/login",
   adminJwtGuard,
   adminSelfGuard,
-  adminRoleGuard("superadmin"),
-  add
+  adminRoleGuard("superadmin", "admin"),
+  loginAdmin
+);
+router.post(
+  "/register",
+  adminJwtGuard,
+  adminSelfGuard,
+  adminRoleGuard(),
+  registerAdmin
+);
+router.post(
+  "/logout",
+  adminJwtGuard,
+  adminSelfGuard,
+  adminRoleGuard("superadmin", "admin"),
+  logoutAdmin
+);
+router.get(
+  "/refresh",
+  adminJwtGuard,
+  adminSelfGuard,
+  adminRoleGuard("superadmin", "admin"),
+  refreshAdminToken
+);
+router.get(
+  "/activate/:link",
+  adminJwtGuard,
+  adminSelfGuard,
+  adminRoleGuard("superadmin", "admin"),
+  activateAdmin
 );
 
 router.post(
@@ -35,6 +57,7 @@ router.post(
   adminJwtGuard,
   adminSelfGuard,
   adminRoleGuard("superadmin"),
+  add
 );
 
 router.get("/", adminJwtGuard, adminRoleGuard("superadmin"), getAll);
@@ -48,8 +71,8 @@ router.get(
   getById
 );
 // router.delete("/:id", remove);
-router.delete("/", adminJwtGuard, adminRoleGuard("superadmin"), remove);
+router.delete("/:id", adminJwtGuard, adminRoleGuard("superadmin"), remove);
 
-router.post("/:id", update);
+router.patch("/:id", update);
 
 module.exports = router;

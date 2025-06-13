@@ -38,7 +38,7 @@ const getAll = async (req, res) => {
         },
         {
           model: Service,
-          attributes: ["id", "description", "price", "is_active"],
+          attributes: ["id", "name", "description", "price", "is_active"],
         },
       ],
       attributes: ["id", "created_at"],

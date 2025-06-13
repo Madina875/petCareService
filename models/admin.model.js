@@ -19,7 +19,7 @@ const Admin = sequelize.define(
       type: DataTypes.STRING(250),
     },
     refresh_token: {
-      type: DataTypes.STRING(250),
+      type: DataTypes.STRING(500),
     },
     role: {
       type: DataTypes.ENUM("superadmin", "admin", "medical"),

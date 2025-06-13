@@ -11,6 +11,7 @@ const Pet = require("../models/pet.model");
 const Client = require("../models/client.model");
 const Reviews = require("../models/reviews.model");
 const { Op, Sequelize } = require("sequelize");
+const Serviceemployee = require("../models/service_employee.model");
 
 const add = async (req, res) => {
   try {
@@ -362,7 +363,7 @@ const getPaymentsByClientFirstName = async (req, res) => {
   }
 };
 
-const getTopEmployeesByService = async (req, res) => {
+const getEmployeeByService = async (req, res) => {
   try {
     const { service_name } = req.query;
 
@@ -373,52 +374,64 @@ const getTopEmployeesByService = async (req, res) => {
       });
     }
 
-    const topEmployees = await Employee.findAll({
-      attributes: [
-        "id",
-        "first_name",
-        "email",
-        "phone_number",
-        [
-          Sequelize.fn("COUNT", Sequelize.col("appointment.id")),
-          "appointment_count",
-        ],
-      ],
+    const duplicates = await Serviceemployee.findAll({
+      attributes: [[Sequelize.fn("COUNT", "*"), "assignment_count"]],
       include: [
         {
-          model: Appointment,
-          attributes: [],
-          required: true,
-          include: [
-            {
-              model: Service,
-              attributes: [],
-              required: true,
-              where: {
-                nam,
-              },
+          model: Service,
+          where: {
+            name: {
+              [Op.iLike]: `%${service_name}%`,
             },
+          },
+          attributes: ["id", "name", "description", "price"],
+        },
+        {
+          model: Employee,
+          attributes: [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "phone_number",
           ],
         },
       ],
-      group: ["employee.id"],
-      having: Sequelize.literal("COUNT(appointment.id) > 0"),
-      order: [[Sequelize.literal("appointment_count"), "DESC"]],
+      group: [
+        "service.id",
+        "employee.id",
+        "service.name",
+        "service.description",
+        "service.price",
+        "employee.first_name",
+        "employee.last_name",
+        "employee.email",
+        "employee.phone_number",
+      ],
+      having: Sequelize.literal("COUNT(*) > 1"),
+      order: [[Sequelize.literal("COUNT(*)"), "DESC"]],
     });
 
-    if (!topEmployees.length) {
+    if (!duplicates.length) {
       return res.status(404).json({
         success: false,
-        message: `No employees found for service: ${service_name}`,
+        message: `No duplicate assignments found for service containing: ${service_name}`,
       });
     }
 
+    const formattedData = duplicates.map((item) => ({
+      employee: item.employee,
+      service: item.service,
+      worked_count: parseInt(item.get("assignment_count")),
+    }));
+
     res.status(200).json({
       success: true,
-      message: `Top employees for service: ${service_name}`,
-      data: topEmployees,
+      message: `Found assignments for service containing: ${service_name}`,
+      data: formattedData,
     });
   } catch (error) {
+    console.log(error);
     sendErrorResponse(error, res, 400);
   }
 };
@@ -433,5 +446,5 @@ module.exports = {
   getClientsWhichHaveBookingWithService,
   getClientsRejected,
   getPaymentsByClientFirstName,
-  getTopEmployeesByService,
+  getEmployeeByService,
 };
