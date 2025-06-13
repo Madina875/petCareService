@@ -25,9 +25,9 @@ router.post(
 );
 router.post(
   "/register",
-  adminJwtGuard,
-  adminSelfGuard,
-  adminRoleGuard(),
+  // adminJwtGuard,
+  // adminSelfGuard,
+  // adminRoleGuard(),
   registerAdmin
 );
 router.post(
@@ -46,9 +46,9 @@ router.get(
 );
 router.get(
   "/activate/:link",
-  adminJwtGuard,
-  adminSelfGuard,
-  adminRoleGuard("superadmin", "admin"),
+  // adminJwtGuard,
+  // adminSelfGuard,
+  // adminRoleGuard("superadmin", "admin"),
   activateAdmin
 );
 
@@ -70,8 +70,8 @@ router.get(
   adminRoleGuard("superadmin", "admin"),
   getById
 );
-// router.delete("/:id", remove);
-router.delete("/:id", adminJwtGuard, adminRoleGuard("superadmin"), remove);
+router.delete("/:id", remove);
+// router.delete("/:id", adminJwtGuard, adminRoleGuard("superadmin"), remove);
 
 router.patch("/:id", update);
 
